@@ -12,9 +12,8 @@ int iterations_per_thread = 0;
 pthread_mutex_t mutex_lock;
 pthread_rwlock_t rwlock;
 
-// --- Worker Functions ---
 
-// 1. Προσέγγιση με Mutex
+// 1.Προσέγγιση με Mutex
 void* worker_mutex(void* arg) {
     for (int i = 0; i < iterations_per_thread; i++) {
         pthread_mutex_lock(&mutex_lock);
@@ -24,8 +23,8 @@ void* worker_mutex(void* arg) {
     return NULL;
 }
 
-// 2. Προσέγγιση με Read-Write Lock
-// Σημείωση: Επειδή κάνουμε EΓΓΡΑΦΗ (αύξηση), χρειαζόμαστε Write Lock.
+// 2.Προσέγγιση με Read-Write Lock
+// Απαιτείται αποκλειστικό κλείδωμα (Write Lock) λόγω ενημέρωσης της μεταβλητής
 void* worker_rwlock(void* arg) {
     for (int i = 0; i < iterations_per_thread; i++) {
         pthread_rwlock_wrlock(&rwlock);
@@ -35,11 +34,11 @@ void* worker_rwlock(void* arg) {
     return NULL;
 }
 
-// 3. Προσέγγιση με Atomic Built-ins
+// 3.Προσέγγιση με Atomic Built-ins
 void* worker_atomic(void* arg) {
     for (int i = 0; i < iterations_per_thread; i++) {
-        // __atomic_fetch_add επιστρέφει την παλιά τιμή, αλλά αυξάνει ατομικά τη μεταβλητή.
-        // __ATOMIC_SEQ_CST: Sequential Consistency (αυστηρότερο μοντέλο μνήμης)
+        // __atomic_fetch_add επιστρέφει την παλιά τιμή, αλλά αυξάνει ατομικά τη μεταβλητή
+        // __ATOMIC_SEQ_CST για αυστηρή σειριακή συνέπεια μνήμης
         __atomic_fetch_add(&shared_counter, 1, __ATOMIC_SEQ_CST);
     }
     return NULL;
@@ -66,7 +65,6 @@ int main(int argc, char* argv[]) {
         pthread_rwlock_init(&rwlock, NULL);
         thread_func = worker_rwlock;
     } else if (strcmp(mode, "atomic") == 0) {
-        // Τα atomics δεν χρειάζονται αρχικοποίηση
         thread_func = worker_atomic;
     } else {
         fprintf(stderr, "Invalid mode. Choose: mutex, rwlock, atomic\n");
@@ -92,15 +90,12 @@ int main(int argc, char* argv[]) {
 
     clock_gettime(CLOCK_MONOTONIC, &end);
 
-    // Υπολογισμός χρόνου σε δευτερόλεπτα
+    // Υπολογισμός χρόνου
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 
-    // Καθαρισμός
     if (strcmp(mode, "mutex") == 0) pthread_mutex_destroy(&mutex_lock);
     if (strcmp(mode, "rwlock") == 0) pthread_rwlock_destroy(&rwlock);
 
-    // Εκτύπωση αποτελεσμάτων (CSV format για εύκολη επεξεργασία)
-    // Format: Mode, Threads, Iterations, FinalValue, TimeSec
     printf("%s,%d,%d,%lld,%.6f\n", mode, num_threads, iterations_per_thread, shared_counter, elapsed);
 
     return 0;
